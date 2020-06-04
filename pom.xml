@@ -2,7 +2,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.amicos</groupId>
 	<artifactId>proxy</artifactId>
-	<version>0.0.4</version>
+	<version>0.0.5-SNAPSHOT</version>
 	<packaging>jar</packaging>
 	<distributionManagement>
 		<snapshotRepository>
@@ -18,7 +18,7 @@
 		<url>https://github.com/subinsoman/proxy.git</url>
 		<connection>scm:git:git@github.com:subinsoman/proxy.git</connection>
 		<developerConnection>scm:git:git@github.com:subinsoman/proxy.git</developerConnection>
-		<tag>proxy-0.0.4</tag>
+		<tag>HEAD</tag>
 	</scm>
 
 	<build>
