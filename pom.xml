@@ -3,7 +3,7 @@
 	<groupId>com.amicos</groupId>
 	<artifactId>proxy</artifactId>
 	<version>0.0.3-SNAPSHOT</version>
-
+	<packaging>jar</packaging>
 	<distributionManagement>
 		<snapshotRepository>
 			<id>sftp.devaloper.snapshot</id>
