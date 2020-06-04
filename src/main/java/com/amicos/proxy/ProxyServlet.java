@@ -111,10 +111,7 @@ public class ProxyServlet extends HttpServlet {
 		proxyClient = createHttpClient();
 	}
 
-	/**
-	 * Reads a configuration parameter. By default it reads servlet init parameters
-	 * but it can be overridden.
-	 */
+	
 	private String getConfigParam(String key) {
 		return getServletConfig().getInitParameter(key);
 	}
@@ -275,10 +272,7 @@ public class ProxyServlet extends HttpServlet {
 		}
 	}
 
-	/**
-	 * Copy a request header from the servlet client to the proxy request. This is
-	 * easily overridden to filter out certain headers if desired.
-	 */
+	
 	private void copyRequestHeader(HttpServletRequest servletRequest, HttpRequest proxyRequest, String headerName) {
 		if (headerName.equalsIgnoreCase(HttpHeaders.CONTENT_LENGTH))
 			return;
