@@ -51,64 +51,47 @@ public class ProxyServlet extends HttpServlet {
 	private int maxConnections = -1;
 
 	private String targetUri;
-	private URI targetUriObj;
 	private HttpHost targetHost;
-
 	private HttpClient proxyClient;
-
-	private String getTargetUri(HttpServletRequest servletRequest) {
-		return (String) servletRequest.getAttribute(ProxyConstants.ATTR_TARGET_URI);
-	}
-
-	private HttpHost getTargetHost(HttpServletRequest servletRequest) {
-		return (HttpHost) servletRequest.getAttribute(ProxyConstants.ATTR_TARGET_HOST);
-	}
 
 	@Override
 	public void init() throws ServletException {
 		try {
-			String serviceName = StringUtils.defaultIfEmpty(getConfigParam(ProxyConstants.SERVICE_NAME), "default");
+			String identifier = StringUtils.defaultIfEmpty(getServletConfig().getInitParameter(ProxyConstants.SERVICE_NAME), "default");
 
-			this.doForwardIP = BooleanUtils
-					.toBoolean(StringUtils.defaultIfEmpty(LoadProxyConfig.getInstance().get(serviceName + "." + ProxyConstants.P_FORWARDEDFOR), getConfigParam(ProxyConstants.P_FORWARDEDFOR)));
+			this.doForwardIP = BooleanUtils.toBoolean(getConfigParam(identifier, ProxyConstants.P_FORWARDEDFOR));
 
-			this.doPreserveHost = BooleanUtils
-					.toBoolean(StringUtils.defaultIfEmpty(LoadProxyConfig.getInstance().get(serviceName + "." + ProxyConstants.P_PRESERVEHOST), getConfigParam(ProxyConstants.P_PRESERVEHOST)));
+			this.doPreserveHost = BooleanUtils.toBoolean(getConfigParam(identifier, ProxyConstants.P_PRESERVEHOST));
 
-			this.doHandleRedirects = BooleanUtils
-					.toBoolean(StringUtils.defaultIfEmpty(LoadProxyConfig.getInstance().get(serviceName + "." + ProxyConstants.P_HANDLEREDIRECTS), getConfigParam(ProxyConstants.P_HANDLEREDIRECTS)));
+			this.doHandleRedirects = BooleanUtils.toBoolean(getConfigParam(identifier, ProxyConstants.P_HANDLEREDIRECTS));
 
-			this.connectTimeout = NumberUtils
-					.toInt(StringUtils.defaultIfEmpty(LoadProxyConfig.getInstance().get(serviceName + "." + ProxyConstants.P_CONNECTTIMEOUT), getConfigParam(ProxyConstants.P_CONNECTTIMEOUT)), -1);
+			this.connectTimeout = NumberUtils.toInt(getConfigParam(identifier, ProxyConstants.P_CONNECTTIMEOUT), -1);
 
-			this.readTimeout = NumberUtils
-					.toInt(StringUtils.defaultIfEmpty(LoadProxyConfig.getInstance().get(serviceName + "." + ProxyConstants.P_READTIMEOUT), getConfigParam(ProxyConstants.P_READTIMEOUT)), -1);
+			this.readTimeout = NumberUtils.toInt(getConfigParam(identifier, ProxyConstants.P_READTIMEOUT), -1);
 
-			this.readTimeout = NumberUtils.toInt(StringUtils.defaultIfEmpty(LoadProxyConfig.getInstance().get(serviceName + "." + ProxyConstants.P_CONNECTIONREQUESTTIMEOUT),
-					getConfigParam(ProxyConstants.P_CONNECTIONREQUESTTIMEOUT)), -1);
+			this.readTimeout = NumberUtils.toInt(getConfigParam(identifier, ProxyConstants.P_CONNECTIONREQUESTTIMEOUT), -1);
 
-			this.maxConnections = NumberUtils
-					.toInt(StringUtils.defaultIfEmpty(LoadProxyConfig.getInstance().get(serviceName + "." + ProxyConstants.P_MAXCONNECTIONS), getConfigParam(ProxyConstants.P_MAXCONNECTIONS)), -1);
+			this.maxConnections = NumberUtils.toInt(getConfigParam(identifier, ProxyConstants.P_MAXCONNECTIONS), -1);
 
-			this.doForwardIP = BooleanUtils.toBoolean(
-					StringUtils.defaultIfEmpty(LoadProxyConfig.getInstance().get(serviceName + "." + ProxyConstants.P_USESYSTEMPROPERTIES), getConfigParam(ProxyConstants.P_USESYSTEMPROPERTIES)));
+			this.useSystemProperties = BooleanUtils.toBoolean(getConfigParam(identifier, ProxyConstants.P_USESYSTEMPROPERTIES));
 
-			this.targetUri = StringUtils.defaultIfEmpty(LoadProxyConfig.getInstance().get(serviceName + "." + ProxyConstants.P_TARGET_URI), getConfigParam(ProxyConstants.P_TARGET_URI));
+			this.targetUri = getConfigParam(identifier, ProxyConstants.P_TARGET_URI);
 
 			if (Objects.isNull(targetUri)) {
-				throw new ServletException(serviceName + "." + ProxyConstants.P_TARGET_URI + " is required.");
+				throw new ServletException(identifier + "." + ProxyConstants.P_TARGET_URI + " is required.");
 			}
-			targetUriObj = new URI(targetUri);
+
+			targetHost = URIUtils.extractHost(new URI(targetUri));
+			proxyClient = createHttpClient();
 		} catch (Exception e) {
 			throw new ServletException("Trying to process targetUri init parameter: " + e, e);
 		}
-		targetHost = URIUtils.extractHost(targetUriObj);
 
-		proxyClient = createHttpClient();
 	}
 
-	private String getConfigParam(String key) {
-		return getServletConfig().getInitParameter(key);
+	private String getConfigParam(String identifier, String key) {
+		return StringUtils.defaultIfEmpty(LoadProxyConfig.getInstance().get(identifier + "." + key), getServletConfig().getInitParameter(key));
+
 	}
 
 	private RequestConfig buildRequestConfig() {
@@ -182,10 +165,8 @@ public class ProxyServlet extends HttpServlet {
 			copyResponseHeaders(proxyResponse, servletRequest, servletResponse);
 
 			if (statusCode == HttpServletResponse.SC_NOT_MODIFIED) {
-
 				servletResponse.setIntHeader(HttpHeaders.CONTENT_LENGTH, 0);
 			} else {
-
 				copyResponseEntity(proxyResponse, servletResponse, proxyRequest, servletRequest);
 			}
 
@@ -203,7 +184,7 @@ public class ProxyServlet extends HttpServlet {
 
 	private HttpResponse doExecute(HttpServletRequest servletRequest, HttpServletResponse servletResponse, HttpRequest proxyRequest) throws IOException {
 		System.out.println("proxy " + servletRequest.getMethod() + " uri: " + servletRequest.getRequestURI() + " -- " + proxyRequest.getRequestLine().getUri());
-		return proxyClient.execute(getTargetHost(servletRequest), proxyRequest);
+		return proxyClient.execute((HttpHost) servletRequest.getAttribute(ProxyConstants.ATTR_TARGET_HOST), proxyRequest);
 	}
 
 	private HttpRequest newProxyRequestWithEntity(String method, String proxyRequestUri, HttpServletRequest servletRequest) throws IOException {
@@ -229,7 +210,6 @@ public class ProxyServlet extends HttpServlet {
 		}
 	}
 
-	@SuppressWarnings("unchecked")
 	private void copyRequestHeaders(HttpServletRequest servletRequest, HttpRequest proxyRequest) {
 		Enumeration<String> enumerationOfHeaderNames = servletRequest.getHeaderNames();
 		while (enumerationOfHeaderNames.hasMoreElements()) {
@@ -238,7 +218,6 @@ public class ProxyServlet extends HttpServlet {
 		}
 	}
 
-	@SuppressWarnings("unchecked")
 	private void copyRequestHeader(HttpServletRequest servletRequest, HttpRequest proxyRequest, String headerName) {
 		if (headerName.equalsIgnoreCase(HttpHeaders.CONTENT_LENGTH)) {
 			return;
@@ -250,7 +229,7 @@ public class ProxyServlet extends HttpServlet {
 		while (headers.hasMoreElements()) {
 			String headerValue = headers.nextElement();
 			if (!doPreserveHost && headerName.equalsIgnoreCase(HttpHeaders.HOST)) {
-				HttpHost host = getTargetHost(servletRequest);
+				HttpHost host = (HttpHost) servletRequest.getAttribute(ProxyConstants.ATTR_TARGET_HOST);
 				headerValue = host.getHostName();
 				if (host.getPort() != -1)
 					headerValue += ":" + host.getPort();
@@ -304,7 +283,7 @@ public class ProxyServlet extends HttpServlet {
 
 	private String rewriteUrlFromRequest(HttpServletRequest servletRequest) {
 		StringBuilder uri = new StringBuilder();
-		uri.append(getTargetUri(servletRequest));
+		uri.append(servletRequest.getAttribute(ProxyConstants.ATTR_TARGET_URI));
 		String pathInfo = rewritePathInfoFromRequest(servletRequest);
 
 		if (Objects.nonNull(pathInfo)) {
@@ -344,7 +323,7 @@ public class ProxyServlet extends HttpServlet {
 	}
 
 	private String rewriteUrlFromResponse(HttpServletRequest servletRequest, String theUrl) {
-		final String targetUri = getTargetUri(servletRequest);
+		final String targetUri = (String) servletRequest.getAttribute(ProxyConstants.ATTR_TARGET_URI);
 		if (theUrl.startsWith(targetUri)) {
 			StringBuffer curUrl = servletRequest.getRequestURL();// no query
 			int pos;
@@ -376,14 +355,13 @@ public class ProxyServlet extends HttpServlet {
 				if (asciiQueryChars.get((int) c) && !(encodePercent && c == '%')) {
 					escape = false;
 				}
-			} else if (!Character.isISOControl(c) && !Character.isSpaceChar(c)) {// not-ascii
+			} else if (!Character.isISOControl(c) && !Character.isSpaceChar(c)) {
 				escape = false;
 			}
 			if (!escape) {
 				if (outBuf != null)
 					outBuf.append(c);
 			} else {
-				// escape
 				if (outBuf == null) {
 					outBuf = new StringBuilder(in.length() + 5 * 3);
 					outBuf.append(in, 0, i);
