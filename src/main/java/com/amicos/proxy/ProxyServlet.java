@@ -51,7 +51,7 @@ public class ProxyServlet extends HttpServlet {
 	private int maxConnections = -1;
 
 	private String targetUri;
-	private HttpHost targetHost;
+	
 	private HttpClient proxyClient;
 
 	@Override
@@ -80,8 +80,6 @@ public class ProxyServlet extends HttpServlet {
 			if (Objects.isNull(targetUri)) {
 				throw new ServletException(identifier + "." + ProxyConstants.P_TARGET_URI + " is required.");
 			}
-
-			targetHost = URIUtils.extractHost(new URI(targetUri));
 			proxyClient = createHttpClient();
 		} catch (Exception e) {
 			throw new ServletException("Trying to process targetUri init parameter: " + e, e);
@@ -141,6 +139,7 @@ public class ProxyServlet extends HttpServlet {
 				servletRequest.setAttribute(ProxyConstants.ATTR_TARGET_URI, targetUri);
 			}
 			if (Objects.isNull(servletRequest.getAttribute(ProxyConstants.ATTR_TARGET_HOST))) {
+				HttpHost targetHost = URIUtils.extractHost(new URI(targetUri));
 				servletRequest.setAttribute(ProxyConstants.ATTR_TARGET_HOST, targetHost);
 			}
 

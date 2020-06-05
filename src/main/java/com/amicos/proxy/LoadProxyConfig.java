@@ -11,7 +11,7 @@ import java.util.Properties;
 public class LoadProxyConfig {
 
 	private static LoadProxyConfig instance = null;
-	private Properties properties = null;
+	private static Properties properties = null;
 
 	private LoadProxyConfig() {
 		init();
@@ -28,10 +28,11 @@ public class LoadProxyConfig {
 		} catch (IOException e) {
 			System.err.println(e.getMessage());
 		} finally {
-			 io = null;
+			io = null;
 		}
 
 	}
+
 	public static LoadProxyConfig getInstance() {
 		if (instance == null) {
 			synchronized (LoadProxyConfig.class) {
