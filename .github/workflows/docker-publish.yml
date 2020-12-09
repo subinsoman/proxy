@@ -1,76 +1,83 @@
-name: Docker
-
-on:
-  push:
-    # Publish `master` as Docker `latest` image.
-    branches:
-      - master
-
-    # Publish `v1.2.3` tags as releases.
-    tags:
-      - v*
-
-  # Run tests for any PRs.
-  pull_request:
-
-env:
-  # TODO: Change variable to your image's name.
-  IMAGE_NAME: image
-
-jobs:
-  # Run tests.
-  # See also https://docs.docker.com/docker-hub/builds/automated-testing/
-  test:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Run tests
-        run: |
-          if [ -f docker-compose.test.yml ]; then
-            docker-compose --file docker-compose.test.yml build
-            docker-compose --file docker-compose.test.yml run sut
-          else
-            docker build . --file Dockerfile
-          fi
-
-  # Push image to GitHub Packages.
-  # See also https://docs.docker.com/docker-hub/builds/
-  push:
-    # Ensure test job passes before pushing image.
-    needs: test
-
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push'
-
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Build image
-        run: docker build . --file Dockerfile --tag $IMAGE_NAME
-
-      - name: Log into registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login docker.pkg.github.com -u ${{ github.actor }} --password-stdin
-
-      - name: Push image
-        run: |
-          IMAGE_ID=docker.pkg.github.com/${{ github.repository }}/$IMAGE_NAME
-
-          # Change all uppercase to lowercase
-          IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
-
-          # Strip git ref prefix from version
-          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
-
-          # Strip "v" prefix from tag name
-          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
-
-          # Use Docker `latest` tag convention
-          [ "$VERSION" == "master" ] && VERSION=latest
-
-          echo IMAGE_ID=$IMAGE_ID
-          echo VERSION=$VERSION
-
-          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
-          docker push $IMAGE_ID:$VERSION
+image: maven:3.3.9-jdk-8
+variables:
+  SONAR_TOKEN: "7bd7071b4d49d6c473111391fdc93c81cb29c986"
+  SONAR_HOST_URL: "http://10.0.14.80:9000/"
+  GIT_DEPTH: 0
+  NEXUS_USERNAME: "Ymx1ZXNreQ=="
+  NEXUS_PASSWORD: "Ymx1ZXNreQ=="
+  NEXUS_DEV_URL : "http://10.0.14.79:8081/repository/Bluesky-Dev-Releases"
+  MAVEN_OPTS: "-Dmaven.repo.local=/cache/.m2/repository"
+workflow:
+  rules:
+    - if: $GITLAB_USER_NAME =~ /gitadmin/ && $CI_COMMIT_BRANCH =~ /feature/
+      when: never
+    - when: always
+stages:
+  - build
+  - test
+  - code-scan
+  - package
+  - publish
+  - auto-merge
+build:
+  stage: build
+  script:
+    - export PROJECT=$(cat pom.xml | grep "<artifactId>"| head -1 | cut -d">" -f2 | cut -d"<" -f1)
+    - export VERSION=$(cat pom.xml | grep "<version>"| head -1 | cut -d">" -f2 | cut -d"<" -f1)
+    - echo Build version - ${PROJECT}-${VERSION}.war
+    - mvn clean prepare-package -DskipTests=true
+test:
+  stage: test
+  script:
+    - mvn test
+  allow_failure: true
+code-scan:
+  stage: code-scan
+  script:
+    - mvn verify sonar:sonar -Dsonar.qualitygate.wait=true -DskipTests=true
+  allow_failure: true
+package:
+  stage: package
+  script:
+    - export PROJECT=$(cat pom.xml | grep "<artifactId>"| head -1 | cut -d">" -f2 | cut -d"<" -f1)
+    - export VERSION=$(cat pom.xml | grep "<version>"| head -1 | cut -d">" -f2 | cut -d"<" -f1)
+    - echo Packaging  - ${PROJECT}-${VERSION}.war
+    - mvn package -DskipTests=true
+    - ls target/
+  artifacts:
+    paths:
+    - target/*.war
+  only:
+    - development
+    - qa
+    - preprod
+    - pre-production
+    - prod
+    - demo
+    - uat
+publish:
+  stage: publish
+  script:
+    - export PROJECT=$(cat pom.xml | grep "<artifactId>"| head -1 | cut -d">" -f2 | cut -d"<" -f1)
+    - export VERSION=$(cat pom.xml | grep "<version>"| head -1 | cut -d">" -f2 | cut -d"<" -f1)
+    - echo Publishing  - ${PROJECT}-${VERSION}.war
+    - ls target/
+    - echo curl -v -u $(eval echo ${NEXUS_USERNAME} | base64 --decode):$(eval echo ${NEXUS_PASSWORD} | base64 --decode) -T target/*.war ${NEXUS_DEV_URL}/${PROJECT}/${VERSION}/${PROJECT}-${VERSION}.war
+    - curl -v -u $(eval echo ${NEXUS_USERNAME} | base64 --decode):$(eval echo ${NEXUS_PASSWORD} | base64 --decode) -T target/*.war ${NEXUS_DEV_URL}/${PROJECT}/${VERSION}/${PROJECT}-${VERSION}.war
+  only:
+    - development
+    - qa
+    - preprod
+    - pre-production
+    - prod
+    - demo
+    - uat
+    
+auto-merge:
+  stage: auto-merge
+  rules:
+    - if: ' $CI_COMMIT_BRANCH !~ /feature|maintenance|hotfix/ && $CI_COMMIT_BRANCH=~ /.*/ '
+  tags:
+    - 90-automerge-py
+  script:
+    - echo "auto-merge is not configured yet"
