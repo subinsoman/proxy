@@ -50,7 +50,7 @@
 	</build>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<httpclient.version>4.5</httpclient.version>
+		<httpclient.version>4.5.13</httpclient.version>
 	</properties>
 	<dependencies>
 
@@ -71,7 +71,7 @@
 		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
-			<version>4.8.2</version>
+			<version>4.13.1</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
